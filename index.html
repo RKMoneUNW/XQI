@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>十字力场棋 (Cross Force Field)</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            display: inline-block;
+            min-width: 100vw;
+            box-sizing: border-box;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 { color: #333; margin: 0 auto 5px auto; cursor: pointer; user-select: none; }
+        h1:hover { color: #000; text-shadow: 0 0 2px rgba(0,0,0,0.2); }
+        .intro { color: #666; margin-bottom: 20px; font-size: 0.9rem; }
+        .controls {
+            margin: 0 auto 20px auto;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: inline-flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            position: relative;
+        }
+        .cell-size-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .arrow-icon {
+            font-size: 18px;
+            vertical-align: middle;
+            transition: transform 0.2s ease;
+            color: #555;
+        }
+        .arrow-icon.open {
+            transform: rotate(180deg);
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 110%;
+            left: 0;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 12px;
+            z-index: 10;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+            min-width: 180px;
+        }
+        .dropdown-menu.show {
+            display: flex;
+        }
+        .dropdown-hint {
+            font-size: 0.85rem;
+            color: #888888;
+            font-weight: bold;
+            user-select: none;
+            margin-bottom: 2px;
+        }
+        .status {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .player-input {
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            border-bottom: 2px dashed #333;
+            background: transparent;
+            width: 90px;
+            text-align: center;
+            outline: none;
+            padding: 0;
+        }
+        .input-gray {
+            color: #888888;
+            background-color: #eeeeee !important;
+        }
+        #board {
+            display: grid;
+            background-color: #e0a96d;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            margin: 0 auto 20px auto;
+            user-select: none;
+        }
+        .cell {
+            background-color: #f5f5dc;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cell:hover {
+            background-color: #e8e8cc;
+        }
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        .piece.player1 { background-color: #1a1a1a; }
+        .piece.player2 { background-color: #ffffff; }
+        
+        .piece.player1.dying-3 { background-color: #4a403a; opacity: 0.75; }
+        .piece.player1.dying-2 { background-color: #524741; opacity: 0.50; }
+        .piece.player1.dying-1 { background-color: #5a504a; opacity: 0.25; }
+
+        .piece.player2.dying-3 { background-color: #f3ebd9; opacity: 0.75; }
+        .piece.player2.dying-2 { background-color: #e7dac2; opacity: 0.50; }
+        .piece.player2.dying-1 { background-color: #dccbaf; opacity: 0.25; }
+
+        .force {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            z-index: 1;
+            opacity: 0.4;
+            transition: opacity 0.3s, background-color 0.3s;
+        }
+        .force.player1 { background-color: #4a4a4a; }
+        .force.player2 { background-color: #3b82f6; }
+        .force.hidden {
+            opacity: 0 !important;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 onclick="resetToDefault()">十字力场棋</h1>
+    <div class="intro">规则：子落地生气，为十字状，后生可争先生气，或并吞、或老死矣</div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="boardSizeInput">棋盘大小:</label>
+            <input type="text" id="boardSizeInput" value="30" style="width: 60px; text-align: center;" oninput="handleSizeInput()">
+        </div>
+        <div class="control-group">
+            <label for="boardRows">行:</label>
+            <input type="text" id="boardRows" value="正" style="width: 50px; text-align: center;" class="input-gray" onfocus="handleRowColFocus(this)" onblur="handleRowColBlur(this)" oninput="handleRowColInput()">
+        </div>
+        <div class="control-group">
+            <label for="boardCols">列:</label>
+            <input type="text" id="boardCols" value="正" style="width: 50px; text-align: center;" class="input-gray" onfocus="handleRowColFocus(this)" onblur="handleRowColBlur(this)" oninput="handleRowColInput()">
+        </div>
+        
+        <div class="control-group" id="cellSizeWidget">
+            <div class="cell-size-container" onclick="toggleCellSizeDropdown(event)">
+                <label>田埂</label>
+                <span class="material-symbols-outlined arrow-icon" id="cellArrow">keyboard_arrow_down</span>
+                <label>:</label>
+            </div>
+            <input type="text" id="cellSizeInput" value="24" style="width: 50px; text-align: center;" oninput="handleMainCellSizeInput()">
+            
+            <div class="dropdown-menu" id="cellSizeDropdown" onclick="stopPropagation(event)">
+                <div class="dropdown-hint">田埂v：-细作中-</div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(长)：</span>
+                    <input type="text" id="cellSizeLength" value="24" style="width: 50px; text-align: center;" class="input-gray" oninput="handleSubCellSizeInput()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(宽)：</span>
+                    <input type="text" id="cellSizeWidth" value="24" style="width: 50px; text-align: center;" class="input-gray" oninput="handleSubCellSizeInput()">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(个宽)：</span>
+                    <input type="text" id="cellSizeGap" value="1" style="width: 50px; text-align: center;" class="input-gray">
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label for="disappearTurns">盈时节、次:</label>
+            <input type="text" id="disappearTurns" value="30" style="width: 80px; text-align: center;">
+        </div>
+        <button onclick="initGame()">使</button>
+        <button onclick="autoFitSize()">适</button>
+    </div>
+
+    <div class="status">
+        <span>本手：</span>
+        <input type="text" id="playerNameInput" class="player-input" value="玩家 1" oninput="updatePlayerNameHistory()">
+        <span id="playerColorText">(黑子)</span>
+    </div>
+
+    <div id="board"></div>
+
+<script>
+    let rows = 30;
+    let cols = 30;
+    let disappearTurns = 30;
+    let cellLength = 24;
+    let cellWidth = 24;
+    let cellGap = 1;
+    let currentPlayer = 1; 
+    let boardState = []; 
+    let forceState = []; 
+    let moveHistory = []; 
+    let playerNames = { 1: "玩家 1", 2: "玩家 2" };
+    let showForceFields = true;
+
+    function parseChineseNumber(str) {
+        if (!str) return NaN;
+        str = str.toString().trim();
+        
+        if (str === '' || str === '0' || str === '无' || str === '〇' || str === '零' || str === '洞' || str === '不死' || str === '长生' || str === '长生不死') {
+            return 0;
+        }
+
+        let num = Number(str);
+        if (!isNaN(num)) return num;
+
+        const cnMap = {
+            '零':0,'〇':0,'洞':0,
+            '一':1,'壹':1,'么':1,
+            '二':2,'贰':2,'两':2,
+            '三':3,'叁':3,
+            '四':4,'肆':4,
+            '五':5,'伍':5,
+            '六':6,'陆':6,
+            '七':7,'柒':7,'拐':7,
+            '八':8,'捌':8,
+            '九':9,'玖':9,'勾':9
+        };
+
+        const unitMap = {
+            '十':10,'拾':10,
+            '百':100,'佰':100,
+            '千':1000,'仟':1000
+        };
+
+        str = str.replace(/有/g, '');
+
+        let isPureDigits = true;
+        let digitValue = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            if (cnMap[char] !== undefined) {
+                digitValue = digitValue * 10 + cnMap[char];
+            } else if (unitMap[char] !== undefined) {
+                isPureDigits = false;
+                break;
+            } else {
+                return NaN;
+            }
+        }
+        if (isPureDigits && str.length > 0) return digitValue;
+
+        let total = 0;
+        let r = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+            if (cnMap[char] !== undefined) {
+                r = cnMap[char];
+                if (i === str.length - 1) {
+                    total += r;
+                }
+            } else if (unitMap[char] !== undefined) {
+                const unit = unitMap[char];
+                if (r === 0 && unit === 10) {
+                    r = 1;
+                }
+                total += r * unit;
+                r = 0;
+            } else {
+                return NaN;
+            }
+        }
+        return total;
+    }
+
+    function getInputValue(id, fallback) {
+        const rawVal = document.getElementById(id).value.trim();
+        const val = parseChineseNumber(rawVal);
+        if (isNaN(val)) {
+            return fallback;
+        }
+        return val;
+    }
+
+    function getRealRowsCols() {
+        const sizeInput = document.getElementById('boardSizeInput');
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+
+        let s = parseChineseNumber(sizeInput.value);
+        if (isNaN(s) || s <= 0) s = 30;
+
+        let r = rowsInput.value === '正' ? s : parseChineseNumber(rowsInput.value);
+        let c = colsInput.value === '正' ? s : parseChineseNumber(colsInput.value);
+
+        if (isNaN(r) || r <= 0) r = s;
+        if (isNaN(c) || c <= 0) c = s;
+
+        return { r, c };
+    }
+
+    function handleSizeInput() {
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+        
+        rowsInput.value = '正';
+        colsInput.value = '正';
+        rowsInput.classList.add('input-gray');
+        colsInput.classList.add('input-gray');
+    }
+
+    function handleRowColFocus(input) {
+        if (input.value === '正') {
+            input.value = document.getElementById('boardSizeInput').value;
+            input.classList.remove('input-gray');
+        }
+    }
+
+    function handleRowColBlur(input) {
+        const sizeInput = document.getElementById('boardSizeInput');
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+
+        let rVal = rowsInput.value.trim();
+        let cVal = colsInput.value.trim();
+
+        if (rVal === '' || cVal === '') {
+            checkAndSyncSquare();
+            return;
+        }
+
+        let sNum = parseChineseNumber(sizeInput.value) || 30;
+        let rNum = parseChineseNumber(rVal);
+        let cNum = parseChineseNumber(cVal);
+
+        if (!isNaN(rNum) && !isNaN(cNum) && rNum === cNum) {
+            sizeInput.value = rNum;
+            rowsInput.value = '正';
+            colsInput.value = '正';
+            rowsInput.classList.add('input-gray');
+            colsInput.classList.add('input-gray');
+        }
+    }
+
+    function handleRowColInput() {
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+        
+        rowsInput.classList.remove('input-gray');
+        colsInput.classList.remove('input-gray');
+    }
+
+    function checkAndSyncSquare() {
+        const sizeInput = document.getElementById('boardSizeInput');
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+
+        let rVal = rowsInput.value.trim();
+        let cVal = colsInput.value.trim();
+
+        let sNum = parseChineseNumber(sizeInput.value) || 30;
+        let rNum = rVal === '正' ? sNum : parseChineseNumber(rVal);
+        let cNum = cVal === '正' ? sNum : parseChineseNumber(cVal);
+
+        if (isNaN(rNum) || rNum <= 0) rNum = sNum;
+        if (isNaN(cNum) || cNum <= 0) cNum = sNum;
+
+        if (rNum === cNum) {
+            sizeInput.value = rNum;
+            rowsInput.value = '正';
+            colsInput.value = '正';
+            rowsInput.classList.add('input-gray');
+            colsInput.classList.add('input-gray');
+        } else {
+            rowsInput.value = rNum;
+            colsInput.value = cNum;
+            rowsInput.classList.remove('input-gray');
+            colsInput.classList.remove('input-gray');
+        }
+    }
+
+    function toggleCellSizeDropdown(e) {
+        e.stopPropagation();
+        const dropdown = document.getElementById('cellSizeDropdown');
+        const arrow = document.getElementById('cellArrow');
+        dropdown.classList.toggle('show');
+        arrow.classList.toggle('open');
+    }
+
+    function stopPropagation(e) {
+        e.stopPropagation();
+    }
+
+    document.addEventListener('click', function() {
+        const dropdown = document.getElementById('cellSizeDropdown');
+        const arrow = document.getElementById('cellArrow');
+        if (dropdown.classList.contains('show')) {
+            dropdown.classList.remove('show');
+            arrow.classList.remove('open');
+            const mainVal = document.getElementById('cellSizeInput').value;
+            const mainNum = parseChineseNumber(mainVal);
+            if (!isNaN(mainNum) && mainNum > 0) {
+                const lenNum = parseChineseNumber(document.getElementById('cellSizeLength').value) || mainNum;
+                document.getElementById('cellSizeInput').value = lenNum;
+            }
+        }
+    });
+
+    function handleMainCellSizeInput() {
+        const mainInput = document.getElementById('cellSizeInput');
+        const lenInput = document.getElementById('cellSizeLength');
+        const widInput = document.getElementById('cellSizeWidth');
+        
+        let val = mainInput.value;
+        lenInput.value = val;
+        widInput.value = val;
+    }
+
+    function handleSubCellSizeInput() {
+        const mainInput = document.getElementById('cellSizeInput');
+        const lenInput = document.getElementById('cellSizeLength');
+
+        let lenVal = lenInput.value;
+        mainInput.value = lenVal;
+    }
+
+    function autoFitSize() {
+        const availableWidth = window.innerWidth - 80;
+        const availableHeight = window.innerHeight - 250;
+        const defaultCellSize = 24;
+        
+        let calculatedCols = Math.floor(availableWidth / defaultCellSize);
+        let calculatedRows = Math.floor(availableHeight / defaultCellSize);
+        
+        if (calculatedCols < 5) calculatedCols = 5;
+        if (calculatedRows < 5) calculatedRows = 5;
+        if (calculatedCols > 200) calculatedCols = 200;
+        if (calculatedRows > 200) calculatedRows = 200;
+        
+        const sizeInput = document.getElementById('boardSizeInput');
+        const rowsInput = document.getElementById('boardRows');
+        const colsInput = document.getElementById('boardCols');
+
+        if (calculatedRows === calculatedCols) {
+            sizeInput.value = calculatedRows;
+            rowsInput.value = '正';
+            colsInput.value = '正';
+            rowsInput.classList.add('input-gray');
+            colsInput.classList.add('input-gray');
+        } else {
+            sizeInput.value = Math.min(calculatedRows, calculatedCols);
+            rowsInput.value = calculatedRows;
+            colsInput.value = calculatedCols;
+            rowsInput.classList.remove('input-gray');
+            colsInput.classList.remove('input-gray');
+        }
+        
+        document.getElementById('cellSizeInput').value = defaultCellSize;
+        document.getElementById('cellSizeLength').value = defaultCellSize;
+        document.getElementById('cellSizeWidth').value = defaultCellSize;
+        document.getElementById('cellSizeGap').value = 1;
+        initGame();
+    }
+
+    function resetToDefault() {
+        localStorage.removeItem('crossForceField_save');
+        
+        document.getElementById('boardSizeInput').value = "30";
+        document.getElementById('boardRows').value = "正";
+        document.getElementById('boardCols').value = "正";
+        document.getElementById('boardRows').className = "control-group input-gray";
+        document.getElementById('boardCols').className = "control-group input-gray";
+        document.getElementById('boardRows').style.backgroundColor = "";
+        document.getElementById('boardCols').style.backgroundColor = "";
+        
+        document.getElementById('cellSizeInput').value = "24";
+        document.getElementById('cellSizeLength').value = "24";
+        document.getElementById('cellSizeWidth').value = "24";
+        document.getElementById('cellSizeGap').value = "1";
+        document.getElementById('disappearTurns').value = "30";
+        
+        playerNames = { 1: "玩家 1", 2: "玩家 2" };
+        
+        initGame();
+    }
+
+    function saveGameState() {
+        const state = {
+            rows,
+            cols,
+            disappearTurns,
+            cellLength,
+            cellWidth,
+            cellGap,
+            currentPlayer,
+            boardState,
+            forceState,
+            moveHistory,
+            playerNames,
+            showForceFields,
+            inputs: {
+                boardSize: document.getElementById('boardSizeInput').value,
+                boardRows: document.getElementById('boardRows').value,
+                boardCols: document.getElementById('boardCols').value,
+                cellSize: document.getElementById('cellSizeInput').value,
+                cellSizeLength: document.getElementById('cellSizeLength').value,
+                cellSizeWidth: document.getElementById('cellSizeWidth').value,
+                cellSizeGap: document.getElementById('cellSizeGap').value,
+                disappearTurns: document.getElementById('disappearTurns').value,
+                rowsClass: document.getElementById('boardRows').className,
+                colsClass: document.getElementById('boardCols').className
+            }
+        };
+        localStorage.setItem('crossForceField_save', JSON.stringify(state));
+    }
+
+    function loadGameState() {
+        const saved = localStorage.getItem('crossForceField_save');
+        if (!saved) return false;
+        try {
+            const state = JSON.parse(saved);
+            rows = state.rows;
+            cols = state.cols;
+            disappearTurns = state.disappearTurns;
+            cellLength = state.cellLength !== undefined ? state.cellLength : (state.cellSize || 24);
+            cellWidth = state.cellWidth !== undefined ? state.cellWidth : (state.cellSize || 24);
+            cellGap = state.cellGap !== undefined ? state.cellGap : 1;
+            currentPlayer = state.currentPlayer;
+            boardState = state.boardState;
+            forceState = state.forceState;
+            moveHistory = state.moveHistory;
+            playerNames = state.playerNames;
+            showForceFields = state.showForceFields !== undefined ? state.showForceFields : true;
+
+            document.getElementById('boardSizeInput').value = state.inputs.boardSize;
+            document.getElementById('boardRows').value = state.inputs.boardRows;
+            document.getElementById('boardCols').value = state.inputs.boardCols;
+            document.getElementById('cellSizeInput').value = state.inputs.cellSize;
+            document.getElementById('cellSizeLength').value = state.inputs.cellSizeLength || state.inputs.cellSize;
+            document.getElementById('cellSizeWidth').value = state.inputs.cellSizeWidth || state.inputs.cellSize;
+            document.getElementById('cellSizeGap').value = state.inputs.cellSizeGap !== undefined ? state.inputs.cellSizeGap : 1;
+            document.getElementById('disappearTurns').value = state.inputs.disappearTurns;
+            document.getElementById('boardRows').className = state.inputs.rowsClass;
+            document.getElementById('boardCols').className = state.inputs.colsClass;
+
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function initGame() {
+        const { r, c } = getRealRowsCols();
+        rows = r;
+        cols = c;
+        cellLength = getInputValue('cellSizeLength', 24);
+        cellWidth = getInputValue('cellSizeWidth', 24);
+        cellGap = getInputValue('cellSizeGap', 1);
+        
+        if (cellLength <= 0) cellLength = 24;
+        if (cellWidth <= 0) cellWidth = 24;
+        if (cellGap < 0) cellGap = 0;
+        
+        currentPlayer = 1;
+        boardState = Array(rows).fill(0).map(() => Array(cols).fill(0));
+        forceState = Array(rows).fill(0).map(() => Array(cols).fill(0));
+        moveHistory = [];
+        showForceFields = true;
+        updateStatusDisplay();
+        renderBoard();
+        saveGameState();
+    }
+
+    function updateStatusDisplay() {
+        const nameInput = document.getElementById('playerNameInput');
+        const colorText = document.getElementById('playerColorText');
+        nameInput.value = playerNames[currentPlayer];
+        colorText.innerText = currentPlayer === 1 ? "(黑子)" : "(白子)";
+    }
+
+    function updatePlayerNameHistory() {
+        const nameInput = document.getElementById('playerNameInput');
+        playerNames[currentPlayer] = nameInput.value;
+        saveGameState();
+    }
+
+    function renderBoard() {
+        const board = document.getElementById('board');
+        board.innerHTML = '';
+        board.style.gridTemplateColumns = `repeat(${cols}, ${cellWidth}px)`;
+        board.style.gridTemplateRows = `repeat(${rows}, ${cellLength}px)`;
+        board.style.gap = `${cellGap}px`;
+
+        const currentTurn = moveHistory.length;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.style.width = `${cellWidth}px`;
+                cell.style.height = `${cellLength}px`;
+                
+                cell.onclick = (e) => {
+                    if (e.detail === 1) { 
+                        handleCellClick(r, c);
+                    }
+                };
+                
+                cell.ondblclick = (e) => {
+                    handleCellDblClick(e, r, c);
+                };
+
+                if (forceState[r][c] !== 0) {
+                    const force = document.createElement('div');
+                    force.className = `force player${forceState[r][c]}`;
+                    if (!showForceFields) {
+                        force.classList.add('hidden');
+                    }
+                    cell.appendChild(force);
+                }
+
+                if (boardState[r][c] !== 0) {
+                    const piece = document.createElement('div');
+                    piece.className = `piece player${boardState[r][c]}`;
+                    
+                    if (disappearTurns > 0) {
+                        const originalMove = moveHistory.find(m => m.row === r && m.col === c && boardState[m.row][m.col] === m.player);
+                        if (originalMove) {
+                            const remainingTurns = (originalMove.turn + disappearTurns) - currentTurn;
+                            if (remainingTurns === 3) {
+                                piece.classList.add('dying-3');
+                            } else if (remainingTurns === 2) {
+                                piece.classList.add('dying-2');
+                            } else if (remainingTurns === 1) {
+                                piece.classList.add('dying-1');
+                            }
+                        }
+                    }
+
+                    cell.appendChild(piece);
+                }
+
+                board.appendChild(cell);
+            }
+        }
+    }
+
+    function handleCellClick(r, c) {
+        if (boardState[r][c] !== 0) return;
+
+        const enemyPlayer = currentPlayer === 1 ? 2 : 1;
+        if (forceState[r][c] === enemyPlayer) {
+            return;
+        }
+
+        boardState[r][c] = currentPlayer;
+        moveHistory.push({ row: r, col: c, player: currentPlayer, turn: moveHistory.length + 1 });
+
+        handleDisappearance();
+        recalculateGame();
+
+        currentPlayer = enemyPlayer;
+        updateStatusDisplay();
+
+        renderBoard();
+        saveGameState();
+    }
+
+    function handleCellDblClick(e, r, c) {
+        if (boardState[r][c] !== 0) return; 
+        
+        e.stopPropagation(); 
+        showForceFields = !showForceFields;
+        
+        const forces = document.querySelectorAll('.force');
+        forces.forEach(f => {
+            if (showForceFields) {
+                f.classList.remove('hidden');
+            } else {
+                f.classList.add('hidden');
+            }
+        });
+        
+        saveGameState();
+    }
+
+    function recalculateGame() {
+        let strikeForce = Array(rows).fill(0).map(() => Array(cols).fill(0));
+        const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+
+        moveHistory.forEach(move => {
+            if (boardState[move.row][move.col] === move.player) {
+                dirs.forEach(([dr, dc]) => {
+                    const nr = move.row + dr;
+                    const nc = move.col + dc;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                        strikeForce[nr][nc] = move.player;
+                    }
+                });
+            }
+        });
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (boardState[r][c] !== 0 && strikeForce[r][c] !== 0 && boardState[r][c] !== strikeForce[r][c]) {
+                    boardState[r][c] = 0;
+                }
+            }
+        }
+
+        forceState = Array(rows).fill(0).map(() => Array(cols).fill(0));
+        moveHistory.forEach(move => {
+            if (boardState[move.row][move.col] === move.player) {
+                dirs.forEach(([dr, dc]) => {
+                    const nr = move.row + dr;
+                    const nc = move.col + dc;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                        forceState[nr][nc] = move.player;
+                    }
+                });
+            }
+        });
+    }
+
+    function handleDisappearance() {
+        if (disappearTurns === 0) return;
+        const currentTurn = moveHistory.length;
+        const expireTurn = currentTurn - disappearTurns;
+
+        if (expireTurn >= 0) {
+            const oldMove = moveHistory[expireTurn];
+            if (oldMove && boardState[oldMove.row][oldMove.col] === oldMove.player) {
+                boardState[oldMove.row][oldMove.col] = 0;
+            }
+        }
+    }
+
+    function startOrResumeGame() {
+        if (loadGameState()) {
+            updateStatusDisplay();
+            renderBoard();
+        } else {
+            initGame();
+        }
+    }
+
+    startOrResumeGame();
+</script>
+</body>
+</html>
