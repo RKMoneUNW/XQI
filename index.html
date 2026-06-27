@@ -22,6 +22,7 @@
         h1 { color: #333; margin: 0 auto 5px auto; cursor: pointer; user-select: none; }
         h1:hover { color: #000; text-shadow: 0 0 2px rgba(0,0,0,0.2); }
         .intro { color: #666; margin-bottom: 20px; font-size: 0.9rem; }
+        .rule-btn { cursor: pointer; font-weight: bold; }
         .controls {
             margin: 0 auto 20px auto;
             padding: 15px;
@@ -89,6 +90,20 @@
             align-items: center;
             justify-content: center;
             gap: 5px;
+            position: relative;
+        }
+        .status-trigger {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            user-select: none;
+            padding: 5px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .status-trigger:hover {
+            background-color: rgba(0,0,0,0.05);
         }
         .player-input {
             font-size: 1.2rem;
@@ -100,11 +115,51 @@
             text-align: center;
             outline: none;
             padding: 0;
+            pointer-events: none;
         }
         .input-gray {
             color: #888888;
             background-color: #eeeeee !important;
         }
+        
+        .player-config-menu {
+            display: none;
+            position: absolute;
+            top: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+            padding: 15px;
+            z-index: 20;
+            border: 1px solid #ccc;
+            text-align: left;
+            width: 260px;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .player-config-menu.show {
+            display: flex;
+        }
+        .config-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.95rem;
+        }
+        .config-row input[type="text"] {
+            width: 100px;
+            padding: 2px 5px;
+            font-size: 0.9rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .config-row.disabled {
+            opacity: 0.4;
+        }
+
         #board {
             display: grid;
             background-color: #e0a96d;
@@ -134,16 +189,43 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             transition: all 0.3s ease;
         }
+        
         .piece.player1 { background-color: #1a1a1a; }
         .piece.player2 { background-color: #ffffff; }
+        .piece.player3 { background-color: #ef4444; }
+        .piece.player4 { background-color: #10b981; }
+        .piece.player5 { background-color: #f59e0b; }
+        .piece.player6 { background-color: #8b5cf6; }
+        .piece.player7 { background-color: #06b6d4; }
         
-        .piece.player1.dying-3 { background-color: #4a403a; opacity: 0.75; }
-        .piece.player1.dying-2 { background-color: #524741; opacity: 0.50; }
-        .piece.player1.dying-1 { background-color: #5a504a; opacity: 0.25; }
+        .force.player1 { background-color: #4a4a4a; }
+        .force.player2 { background-color: #3b82f6; }
+        .force.player3 { background-color: #f87171; }
+        .force.player4 { background-color: #34d399; }
+        .force.player5 { background-color: #fbbf24; }
+        .force.player6 { background-color: #a78bfa; }
+        .force.player7 { background-color: #22d3ee; }
 
-        .piece.player2.dying-3 { background-color: #f3ebd9; opacity: 0.75; }
-        .piece.player2.dying-2 { background-color: #e7dac2; opacity: 0.50; }
-        .piece.player2.dying-1 { background-color: #dccbaf; opacity: 0.25; }
+        .piece.dying-3 { opacity: 0.75; }
+        .piece.dying-2 { opacity: 0.50; }
+        .piece.dying-1 { opacity: 0.25; }
+
+        .piece.dead {
+            opacity: 0.6;
+        }
+        .piece.dead::before,
+        .piece.dead::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120%;
+            height: 3px;
+            background-color: #dc2626;
+            z-index: 3;
+        }
+        .piece.dead::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .piece.dead::after { transform: translate(-50%, -50%) rotate(-45deg); }
 
         .force {
             width: 100%;
@@ -153,8 +235,6 @@
             opacity: 0.4;
             transition: opacity 0.3s, background-color 0.3s;
         }
-        .force.player1 { background-color: #4a4a4a; }
-        .force.player2 { background-color: #3b82f6; }
         .force.hidden {
             opacity: 0 !important;
         }
@@ -163,7 +243,7 @@
 <body>
 
     <h1 onclick="resetToDefault()">十字力场棋</h1>
-    <div class="intro">规则：子落地生气，为十字状，后生可争先生气，或并吞、或老死矣</div>
+    <div class="intro"><span class="rule-btn" onclick="toggleBattlefieldMode()" id="ruleText">规则</span>：<span id="ruleContent">子落地生气，为十字状，后生可争先生气，或并吞、或老死矣</span></div>
     
     <div class="controls">
         <div class="control-group">
@@ -181,41 +261,48 @@
         
         <div class="control-group" id="cellSizeWidget">
             <div class="cell-size-container" onclick="toggleCellSizeDropdown(event)">
-                <label>田埂</label>
+                <label id="cellLabel">田埂</label>
                 <span class="material-symbols-outlined arrow-icon" id="cellArrow">keyboard_arrow_down</span>
                 <label>:</label>
             </div>
             <input type="text" id="cellSizeInput" value="24" style="width: 50px; text-align: center;" oninput="handleMainCellSizeInput()">
             
             <div class="dropdown-menu" id="cellSizeDropdown" onclick="stopPropagation(event)">
-                <div class="dropdown-hint">田埂v：-细作中-</div>
+                <div class="dropdown-hint" id="dropdownHint">田埂v：-细作中-</div>
                 <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(长)：</span>
+                    <span id="labelLength" style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(长)：</span>
                     <input type="text" id="cellSizeLength" value="24" style="width: 50px; text-align: center;" class="input-gray" oninput="handleSubCellSizeInput()">
                 </div>
                 <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(宽)：</span>
+                    <span id="labelWidth" style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(宽)：</span>
                     <input type="text" id="cellSizeWidth" value="24" style="width: 50px; text-align: center;" class="input-gray" oninput="handleSubCellSizeInput()">
                 </div>
                 <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(个宽)：</span>
+                    <span id="labelGap" style="font-size: 0.85rem; width: 85px; white-space: nowrap;">田埂(个宽)：</span>
                     <input type="text" id="cellSizeGap" value="1" style="width: 50px; text-align: center;" class="input-gray">
                 </div>
             </div>
         </div>
 
         <div class="control-group">
-            <label for="disappearTurns">盈时节、次:</label>
+            <label for="disappearTurns" id="turnLabel">盈时节、次:</label>
             <input type="text" id="disappearTurns" value="30" style="width: 80px; text-align: center;">
         </div>
         <button onclick="initGame()">使</button>
         <button onclick="autoFitSize()">适</button>
     </div>
 
-    <div class="status">
-        <span>本手：</span>
-        <input type="text" id="playerNameInput" class="player-input" value="玩家 1" oninput="updatePlayerNameHistory()">
-        <span id="playerColorText">(黑子)</span>
+    <div class="status" onclick="stopPropagation(event)">
+        <div class="status-trigger" onclick="togglePlayerConfigMenu(event)">
+            <span>本手：</span>
+            <input type="text" id="playerNameInput" class="player-input" value="玩家 1" readonly>
+            <span id="playerColorText">(黑子)</span>
+        </div>
+        
+        <div class="player-config-menu" id="playerConfigMenu">
+            <div style="font-size:0.85rem; color:#888; font-weight:bold; border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:5px;">战局席位配置 (2-7人)</div>
+            <div id="playerConfigRows"></div>
+        </div>
     </div>
 
     <div id="board"></div>
@@ -230,76 +317,176 @@
     let currentPlayer = 1; 
     let boardState = []; 
     let forceState = []; 
+    let deadState = [];
     let moveHistory = []; 
-    let playerNames = { 1: "玩家 1", 2: "玩家 2" };
+    let isBattlefieldMode = false; 
+    
+    let playerActive = { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true };
+    let playerNames = { 
+        1: "玩家 1", 2: "玩家 2", 3: "玩家 3", 
+        4: "玩家 4", 5: "玩家 5", 6: "玩家 6", 7: "玩家 7" 
+    };
+    let playerColorNames = { 
+        1: "(黑子)", 2: "(白子)", 3: "(红子)", 
+        4: "(绿子)", 5: "(黄子)", 6: "(紫子)", 7: "(青子)" 
+    };
+    
     let showForceFields = true;
+
+    function toggleBattlefieldMode() {
+        isBattlefieldMode = !isBattlefieldMode;
+        
+        playerActive = { 1: true, 2: true, 3: false, 4: false, 5: false, 6: false, 7: false };
+        
+        const ruleContent = document.getElementById('ruleContent');
+        const cellLabel = document.getElementById('cellLabel');
+        const turnLabel = document.getElementById('turnLabel');
+        const dropdownHint = document.getElementById('dropdownHint');
+        const labelLength = document.getElementById('labelLength');
+        const labelWidth = document.getElementById('labelWidth');
+        const labelGap = document.getElementById('labelGap');
+
+        if (isBattlefieldMode) {
+            ruleContent.innerText = "子落地生气，为十字状，后生可争先生气，或伐、或老死矣";
+            cellLabel.innerText = "战地";
+            turnLabel.innerText = "天时节、次:";
+            dropdownHint.innerText = "战地v：-细作中-";
+            labelLength.innerText = "战地(长)：";
+            labelWidth.innerText = "战地(宽)：";
+            labelGap.innerText = "战地(个宽)：";
+        } else {
+            ruleContent.innerText = "子落地生气，为十字状，后生可争先生气，或并吞、或老死矣";
+            cellLabel.innerText = "田埂";
+            turnLabel.innerText = "盈时节、次:";
+            dropdownHint.innerText = "田埂v：-细作中-";
+            labelLength.innerText = "田埂(长)：";
+            labelWidth.innerText = "田埂(宽)：";
+            labelGap.innerText = "田埂(个宽)：";
+        }
+        
+        currentPlayer = 1;
+        initGame();
+    }
+
+    function togglePlayerConfigMenu(e) {
+        e.stopPropagation();
+        const menu = document.getElementById('playerConfigMenu');
+        menu.classList.toggle('show');
+        if (menu.classList.contains('show')) {
+            renderPlayerConfigRows();
+        }
+    }
+
+    function renderPlayerConfigRows() {
+        const container = document.getElementById('playerConfigRows');
+        container.innerHTML = '';
+        
+        const maxLoop = isBattlefieldMode ? 7 : 2;
+
+        for (let i = 1; i <= maxLoop; i++) {
+            const row = document.createElement('div');
+            row.className = 'config-row';
+            if (!playerActive[i] && isBattlefieldMode) {
+                row.classList.add('disabled');
+            }
+
+            let checkboxHtml = '';
+            if (!isBattlefieldMode) {
+                checkboxHtml = `<input type="checkbox" checked disabled>`;
+            } else {
+                const disableCheck = (i <= 2) ? 'disabled' : '';
+                const checked = playerActive[i] ? 'checked' : '';
+                checkboxHtml = `<input type="checkbox" ${checked} ${disableCheck} onchange="handlePlayerActiveChange(${i}, this.checked)">`;
+            }
+
+            row.innerHTML = `
+                <div style="display:flex; align-items:center; gap:5px;">
+                    ${checkboxHtml}
+                    <span style="font-weight:bold;">${playerColorNames[i]}</span>
+                </div>
+                <input type="text" value="${playerNames[i]}" oninput="handlePlayerNameChange(${i}, this.value)">
+            `;
+            container.appendChild(row);
+        }
+    }
+
+    function handlePlayerActiveChange(playerNum, isActive) {
+        playerActive[playerNum] = isActive;
+        if (!isActive && currentPlayer === playerNum) {
+            moveToNextPlayer();
+        }
+        renderPlayerConfigRows();
+        updateStatusDisplay();
+        saveGameState();
+    }
+
+    function handlePlayerNameChange(playerNum, name) {
+        playerNames[playerNum] = name;
+        updateStatusDisplay();
+        saveGameState();
+    }
+
+    function moveToNextPlayer() {
+        const maxPlayers = isBattlefieldMode ? 7 : 2;
+        let loops = 0;
+        do {
+            currentPlayer = (currentPlayer % maxPlayers) + 1;
+            loops++;
+        } while (!playerActive[currentPlayer] && loops < 10);
+    }
+
+    document.addEventListener('click', function() {
+        const cellSizeDropdown = document.getElementById('cellSizeDropdown');
+        const cellArrow = document.getElementById('cellArrow');
+        if (cellSizeDropdown && cellSizeDropdown.classList.contains('show')) {
+            cellSizeDropdown.classList.remove('show');
+            cellArrow.classList.remove('open');
+        }
+
+        const playerConfigMenu = document.getElementById('playerConfigMenu');
+        if (playerConfigMenu && playerConfigMenu.classList.contains('show')) {
+            playerConfigMenu.classList.remove('show');
+        }
+    });
 
     function parseChineseNumber(str) {
         if (!str) return NaN;
         str = str.toString().trim();
-        
-        if (str === '' || str === '0' || str === '无' || str === '〇' || str === '零' || str === '洞' || str === '不死' || str === '长生' || str === '长生不死') {
-            return 0;
-        }
-
+        const immortalWords = [
+            '0', '无', '〇', '零', '洞', '空', '非', '殁', '长', '生', '恒', '常', '久', '永', '固', '定',
+            '不死', '长生', '不灭', '不退', '常存', '长存', '永恒', '永在', '永久', '永生', '无期', '无限', '无穷', '无尽', '无终', '锁死', '定格', '无双', '万岁', '万寿', '不坏', '金身',
+            '长生不死', '长生不老', '不死不灭', '长存不灭', '永恒不变', '千秋万代', '万寿无疆', '金刚不坏', '与其同寿',
+            '与天同寿', '与地同寿', '与天地同寿', '与天地齐寿', '天地同寿', '日月同辉', '寿比南山'
+        ];
+        if (immortalWords.includes(str)) return 0;
         let num = Number(str);
         if (!isNaN(num)) return num;
 
-        const cnMap = {
-            '零':0,'〇':0,'洞':0,
-            '一':1,'壹':1,'么':1,
-            '二':2,'贰':2,'两':2,
-            '三':3,'叁':3,
-            '四':4,'肆':4,
-            '五':5,'伍':5,
-            '六':6,'陆':6,
-            '七':7,'柒':7,'拐':7,
-            '八':8,'捌':8,
-            '九':9,'玖':9,'勾':9
-        };
-
-        const unitMap = {
-            '十':10,'拾':10,
-            '百':100,'佰':100,
-            '千':1000,'仟':1000
-        };
-
+        const cnMap = {'零':0,'〇':0,'洞':0,'一':1,'壹':1,'么':1,'二':2,'贰':2,'两':2,'三':3,'叁':3,'四':4,'肆':4,'五':5,'伍':5,'六':6,'陆':6,'七':7,'柒':7,'拐':7,'八':8,'捌':8,'九':9,'玖':9,'勾':9};
+        const unitMap = {'十':10,'拾':10,'百':100,'佰':100,'千':1000,'仟':1000};
         str = str.replace(/有/g, '');
 
-        let isPureDigits = true;
-        let digitValue = 0;
+        let isPureDigits = true, digitValue = 0;
         for (let i = 0; i < str.length; i++) {
             const char = str[i];
-            if (cnMap[char] !== undefined) {
-                digitValue = digitValue * 10 + cnMap[char];
-            } else if (unitMap[char] !== undefined) {
-                isPureDigits = false;
-                break;
-            } else {
-                return NaN;
-            }
+            if (cnMap[char] !== undefined) digitValue = digitValue * 10 + cnMap[char];
+            else if (unitMap[char] !== undefined) { isPureDigits = false; break; }
+            else return NaN;
         }
         if (isPureDigits && str.length > 0) return digitValue;
 
-        let total = 0;
-        let r = 0;
+        let total = 0, r = 0;
         for (let i = 0; i < str.length; i++) {
             const char = str[i];
             if (cnMap[char] !== undefined) {
                 r = cnMap[char];
-                if (i === str.length - 1) {
-                    total += r;
-                }
+                if (i === str.length - 1) total += r;
             } else if (unitMap[char] !== undefined) {
                 const unit = unitMap[char];
-                if (r === 0 && unit === 10) {
-                    r = 1;
-                }
+                if (r === 0 && unit === 10) r = 1;
                 total += r * unit;
                 r = 0;
-            } else {
-                return NaN;
-            }
+            } else return NaN;
         }
         return total;
     }
@@ -307,37 +494,27 @@
     function getInputValue(id, fallback) {
         const rawVal = document.getElementById(id).value.trim();
         const val = parseChineseNumber(rawVal);
-        if (isNaN(val)) {
-            return fallback;
-        }
-        return val;
+        return isNaN(val) ? fallback : val;
     }
 
     function getRealRowsCols() {
         const sizeInput = document.getElementById('boardSizeInput');
         const rowsInput = document.getElementById('boardRows');
         const colsInput = document.getElementById('boardCols');
-
         let s = parseChineseNumber(sizeInput.value);
         if (isNaN(s) || s <= 0) s = 30;
-
         let r = rowsInput.value === '正' ? s : parseChineseNumber(rowsInput.value);
         let c = colsInput.value === '正' ? s : parseChineseNumber(colsInput.value);
-
         if (isNaN(r) || r <= 0) r = s;
         if (isNaN(c) || c <= 0) c = s;
-
         return { r, c };
     }
 
     function handleSizeInput() {
-        const rowsInput = document.getElementById('boardRows');
-        const colsInput = document.getElementById('boardCols');
-        
-        rowsInput.value = '正';
-        colsInput.value = '正';
-        rowsInput.classList.add('input-gray');
-        colsInput.classList.add('input-gray');
+        document.getElementById('boardRows').value = '正';
+        document.getElementById('boardCols').value = '正';
+        document.getElementById('boardRows').classList.add('input-gray');
+        document.getElementById('boardCols').classList.add('input-gray');
     }
 
     function handleRowColFocus(input) {
@@ -351,19 +528,13 @@
         const sizeInput = document.getElementById('boardSizeInput');
         const rowsInput = document.getElementById('boardRows');
         const colsInput = document.getElementById('boardCols');
-
-        let rVal = rowsInput.value.trim();
-        let cVal = colsInput.value.trim();
-
-        if (rVal === '' || cVal === '') {
+        if (rowsInput.value.trim() === '' || colsInput.value.trim() === '') {
             checkAndSyncSquare();
             return;
         }
-
         let sNum = parseChineseNumber(sizeInput.value) || 30;
-        let rNum = parseChineseNumber(rVal);
-        let cNum = parseChineseNumber(cVal);
-
+        let rNum = parseChineseNumber(rowsInput.value);
+        let cNum = parseChineseNumber(colsInput.value);
         if (!isNaN(rNum) && !isNaN(cNum) && rNum === cNum) {
             sizeInput.value = rNum;
             rowsInput.value = '正';
@@ -374,25 +545,17 @@
     }
 
     function handleRowColInput() {
-        const rowsInput = document.getElementById('boardRows');
-        const colsInput = document.getElementById('boardCols');
-        
-        rowsInput.classList.remove('input-gray');
-        colsInput.classList.remove('input-gray');
+        document.getElementById('boardRows').classList.remove('input-gray');
+        document.getElementById('boardCols').classList.remove('input-gray');
     }
 
     function checkAndSyncSquare() {
         const sizeInput = document.getElementById('boardSizeInput');
         const rowsInput = document.getElementById('boardRows');
         const colsInput = document.getElementById('boardCols');
-
-        let rVal = rowsInput.value.trim();
-        let cVal = colsInput.value.trim();
-
         let sNum = parseChineseNumber(sizeInput.value) || 30;
-        let rNum = rVal === '正' ? sNum : parseChineseNumber(rVal);
-        let cNum = cVal === '正' ? sNum : parseChineseNumber(cVal);
-
+        let rNum = rowsInput.value.trim() === '正' ? sNum : parseChineseNumber(rowsInput.value);
+        let cNum = colsInput.value.trim() === '正' ? sNum : parseChineseNumber(colsInput.value);
         if (isNaN(rNum) || rNum <= 0) rNum = sNum;
         if (isNaN(cNum) || cNum <= 0) cNum = sNum;
 
@@ -418,55 +581,26 @@
         arrow.classList.toggle('open');
     }
 
-    function stopPropagation(e) {
-        e.stopPropagation();
-    }
-
-    document.addEventListener('click', function() {
-        const dropdown = document.getElementById('cellSizeDropdown');
-        const arrow = document.getElementById('cellArrow');
-        if (dropdown.classList.contains('show')) {
-            dropdown.classList.remove('show');
-            arrow.classList.remove('open');
-            const mainVal = document.getElementById('cellSizeInput').value;
-            const mainNum = parseChineseNumber(mainVal);
-            if (!isNaN(mainNum) && mainNum > 0) {
-                const lenNum = parseChineseNumber(document.getElementById('cellSizeLength').value) || mainNum;
-                document.getElementById('cellSizeInput').value = lenNum;
-            }
-        }
-    });
+    function stopPropagation(e) { e.stopPropagation(); }
 
     function handleMainCellSizeInput() {
-        const mainInput = document.getElementById('cellSizeInput');
-        const lenInput = document.getElementById('cellSizeLength');
-        const widInput = document.getElementById('cellSizeWidth');
-        
-        let val = mainInput.value;
-        lenInput.value = val;
-        widInput.value = val;
+        const val = document.getElementById('cellSizeInput').value;
+        document.getElementById('cellSizeLength').value = val;
+        document.getElementById('cellSizeWidth').value = val;
     }
 
     function handleSubCellSizeInput() {
-        const mainInput = document.getElementById('cellSizeInput');
-        const lenInput = document.getElementById('cellSizeLength');
-
-        let lenVal = lenInput.value;
-        mainInput.value = lenVal;
+        document.getElementById('cellSizeInput').value = document.getElementById('cellSizeLength').value;
     }
 
     function autoFitSize() {
         const availableWidth = window.innerWidth - 80;
         const availableHeight = window.innerHeight - 250;
         const defaultCellSize = 24;
-        
         let calculatedCols = Math.floor(availableWidth / defaultCellSize);
         let calculatedRows = Math.floor(availableHeight / defaultCellSize);
-        
         if (calculatedCols < 5) calculatedCols = 5;
         if (calculatedRows < 5) calculatedRows = 5;
-        if (calculatedCols > 200) calculatedCols = 200;
-        if (calculatedRows > 200) calculatedRows = 200;
         
         const sizeInput = document.getElementById('boardSizeInput');
         const rowsInput = document.getElementById('boardRows');
@@ -485,50 +619,36 @@
             rowsInput.classList.remove('input-gray');
             colsInput.classList.remove('input-gray');
         }
-        
-        document.getElementById('cellSizeInput').value = defaultCellSize;
-        document.getElementById('cellSizeLength').value = defaultCellSize;
-        document.getElementById('cellSizeWidth').value = defaultCellSize;
-        document.getElementById('cellSizeGap').value = 1;
         initGame();
     }
 
     function resetToDefault() {
         localStorage.removeItem('crossForceField_save');
-        
+        isBattlefieldMode = false;
+        document.getElementById('ruleContent').innerText = "子落地生气，为十字状，后生可争先生气，或并吞、或老死矣";
+        document.getElementById('cellLabel').innerText = "田埂";
+        document.getElementById('turnLabel').innerText = "盈时节、次:";
         document.getElementById('boardSizeInput').value = "30";
         document.getElementById('boardRows').value = "正";
         document.getElementById('boardCols').value = "正";
         document.getElementById('boardRows').className = "control-group input-gray";
         document.getElementById('boardCols').className = "control-group input-gray";
-        document.getElementById('boardRows').style.backgroundColor = "";
-        document.getElementById('boardCols').style.backgroundColor = "";
-        
         document.getElementById('cellSizeInput').value = "24";
         document.getElementById('cellSizeLength').value = "24";
         document.getElementById('cellSizeWidth').value = "24";
         document.getElementById('cellSizeGap').value = "1";
         document.getElementById('disappearTurns').value = "30";
         
-        playerNames = { 1: "玩家 1", 2: "玩家 2" };
-        
+        playerActive = { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true };
+        playerNames = { 1: "玩家 1", 2: "玩家 2", 3: "玩家 3", 4: "玩家 4", 5: "玩家 5", 6: "玩家 6", 7: "玩家 7" };
         initGame();
     }
 
     function saveGameState() {
         const state = {
-            rows,
-            cols,
-            disappearTurns,
-            cellLength,
-            cellWidth,
-            cellGap,
-            currentPlayer,
-            boardState,
-            forceState,
-            moveHistory,
-            playerNames,
-            showForceFields,
+            rows, cols, disappearTurns, cellLength, cellWidth, cellGap, currentPlayer,
+            boardState, forceState, deadState, moveHistory, playerNames, playerActive, showForceFields, isBattlefieldMode,
+            ruleContent: document.getElementById('ruleContent').innerText,
             inputs: {
                 boardSize: document.getElementById('boardSizeInput').value,
                 boardRows: document.getElementById('boardRows').value,
@@ -550,18 +670,23 @@
         if (!saved) return false;
         try {
             const state = JSON.parse(saved);
-            rows = state.rows;
-            cols = state.cols;
-            disappearTurns = state.disappearTurns;
-            cellLength = state.cellLength !== undefined ? state.cellLength : (state.cellSize || 24);
-            cellWidth = state.cellWidth !== undefined ? state.cellWidth : (state.cellSize || 24);
-            cellGap = state.cellGap !== undefined ? state.cellGap : 1;
-            currentPlayer = state.currentPlayer;
-            boardState = state.boardState;
-            forceState = state.forceState;
-            moveHistory = state.moveHistory;
-            playerNames = state.playerNames;
+            rows = state.rows; cols = state.cols; disappearTurns = state.disappearTurns;
+            cellLength = state.cellLength || 24; cellWidth = state.cellWidth || 24; cellGap = state.cellGap !== undefined ? state.cellGap : 1;
+            currentPlayer = state.currentPlayer; boardState = state.boardState; forceState = state.forceState;
+            deadState = state.deadState || Array(rows).fill(0).map(() => Array(cols).fill(false));
+            moveHistory = state.moveHistory; playerNames = state.playerNames; 
+            playerActive = state.playerActive || { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true };
             showForceFields = state.showForceFields !== undefined ? state.showForceFields : true;
+            isBattlefieldMode = state.isBattlefieldMode !== undefined ? state.isBattlefieldMode : true;
+
+            document.getElementById('ruleContent').innerText = state.ruleContent;
+            const cellLabel = document.getElementById('cellLabel');
+            const turnLabel = document.getElementById('turnLabel');
+            if (isBattlefieldMode) {
+                cellLabel.innerText = "战地"; turnLabel.innerText = "天时节、次:";
+            } else {
+                cellLabel.innerText = "田埂"; turnLabel.innerText = "盈时节、次:";
+            }
 
             document.getElementById('boardSizeInput').value = state.inputs.boardSize;
             document.getElementById('boardRows').value = state.inputs.boardRows;
@@ -573,28 +698,24 @@
             document.getElementById('disappearTurns').value = state.inputs.disappearTurns;
             document.getElementById('boardRows').className = state.inputs.rowsClass;
             document.getElementById('boardCols').className = state.inputs.colsClass;
-
             return true;
-        } catch (e) {
-            return false;
-        }
+        } catch (e) { return false; }
     }
 
     function initGame() {
         const { r, c } = getRealRowsCols();
-        rows = r;
-        cols = c;
+        rows = r; cols = c;
+        disappearTurns = getInputValue('disappearTurns', 30);
         cellLength = getInputValue('cellSizeLength', 24);
         cellWidth = getInputValue('cellSizeWidth', 24);
         cellGap = getInputValue('cellSizeGap', 1);
         
-        if (cellLength <= 0) cellLength = 24;
-        if (cellWidth <= 0) cellWidth = 24;
-        if (cellGap < 0) cellGap = 0;
-        
         currentPlayer = 1;
+        if (!playerActive[currentPlayer]) moveToNextPlayer();
+
         boardState = Array(rows).fill(0).map(() => Array(cols).fill(0));
         forceState = Array(rows).fill(0).map(() => Array(cols).fill(0));
+        deadState = Array(rows).fill(0).map(() => Array(cols).fill(false));
         moveHistory = [];
         showForceFields = true;
         updateStatusDisplay();
@@ -605,14 +726,8 @@
     function updateStatusDisplay() {
         const nameInput = document.getElementById('playerNameInput');
         const colorText = document.getElementById('playerColorText');
-        nameInput.value = playerNames[currentPlayer];
-        colorText.innerText = currentPlayer === 1 ? "(黑子)" : "(白子)";
-    }
-
-    function updatePlayerNameHistory() {
-        const nameInput = document.getElementById('playerNameInput');
-        playerNames[currentPlayer] = nameInput.value;
-        saveGameState();
+        nameInput.value = playerNames[currentPlayer] || `玩家 ${currentPlayer}`;
+        colorText.innerText = playerColorNames[currentPlayer];
     }
 
     function renderBoard() {
@@ -623,6 +738,7 @@
         board.style.gap = `${cellGap}px`;
 
         const currentTurn = moveHistory.length;
+        const currentDisappearTurns = getInputValue('disappearTurns', 30);
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -631,22 +747,13 @@
                 cell.style.width = `${cellWidth}px`;
                 cell.style.height = `${cellLength}px`;
                 
-                cell.onclick = (e) => {
-                    if (e.detail === 1) { 
-                        handleCellClick(r, c);
-                    }
-                };
-                
-                cell.ondblclick = (e) => {
-                    handleCellDblClick(e, r, c);
-                };
+                cell.onclick = (e) => { if (e.detail === 1) handleCellClick(r, c); };
+                cell.ondblclick = (e) => { handleCellDblClick(e, r, c); };
 
                 if (forceState[r][c] !== 0) {
                     const force = document.createElement('div');
                     force.className = `force player${forceState[r][c]}`;
-                    if (!showForceFields) {
-                        force.classList.add('hidden');
-                    }
+                    if (!showForceFields) force.classList.add('hidden');
                     cell.appendChild(force);
                 }
 
@@ -654,23 +761,19 @@
                     const piece = document.createElement('div');
                     piece.className = `piece player${boardState[r][c]}`;
                     
-                    if (disappearTurns > 0) {
-                        const originalMove = moveHistory.find(m => m.row === r && m.col === c && boardState[m.row][m.col] === m.player);
+                    if (deadState[r][c]) {
+                        piece.classList.add('dead');
+                    } else if (currentDisappearTurns > 0) {
+                        const originalMove = moveHistory.find(m => m.row === r && m.col === c && boardState[m.row][m.col] === m.player && !deadState[m.row][m.col]);
                         if (originalMove) {
-                            const remainingTurns = (originalMove.turn + disappearTurns) - currentTurn;
-                            if (remainingTurns === 3) {
-                                piece.classList.add('dying-3');
-                            } else if (remainingTurns === 2) {
-                                piece.classList.add('dying-2');
-                            } else if (remainingTurns === 1) {
-                                piece.classList.add('dying-1');
-                            }
+                            const remainingTurns = (originalMove.turn + currentDisappearTurns) - currentTurn;
+                            if (remainingTurns === 3) piece.classList.add('dying-3');
+                            else if (remainingTurns === 2) piece.classList.add('dying-2');
+                            else if (remainingTurns === 1) piece.classList.add('dying-1');
                         }
                     }
-
                     cell.appendChild(piece);
                 }
-
                 board.appendChild(cell);
             }
         }
@@ -678,40 +781,34 @@
 
     function handleCellClick(r, c) {
         if (boardState[r][c] !== 0) return;
-
-        const enemyPlayer = currentPlayer === 1 ? 2 : 1;
-        if (forceState[r][c] === enemyPlayer) {
-            return;
+        let placedDead = false;
+        
+        if (!isBattlefieldMode) {
+            if (forceState[r][c] !== 0 && forceState[r][c] !== currentPlayer) return;
+        } else {
+            if (forceState[r][c] !== 0 && forceState[r][c] !== currentPlayer) placedDead = true;
         }
 
         boardState[r][c] = currentPlayer;
+        if (placedDead) deadState[r][c] = true;
+        
         moveHistory.push({ row: r, col: c, player: currentPlayer, turn: moveHistory.length + 1 });
 
         handleDisappearance();
         recalculateGame();
-
-        currentPlayer = enemyPlayer;
+        moveToNextPlayer();
         updateStatusDisplay();
-
         renderBoard();
         saveGameState();
     }
 
     function handleCellDblClick(e, r, c) {
-        if (boardState[r][c] !== 0) return; 
-        
         e.stopPropagation(); 
         showForceFields = !showForceFields;
-        
-        const forces = document.querySelectorAll('.force');
-        forces.forEach(f => {
-            if (showForceFields) {
-                f.classList.remove('hidden');
-            } else {
-                f.classList.add('hidden');
-            }
+        document.querySelectorAll('.force').forEach(f => {
+            if (showForceFields) f.classList.remove('hidden');
+            else f.classList.add('hidden');
         });
-        
         saveGameState();
     }
 
@@ -720,48 +817,46 @@
         const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
         moveHistory.forEach(move => {
-            if (boardState[move.row][move.col] === move.player) {
+            if (boardState[move.row][move.col] === move.player && !deadState[move.row][move.col]) {
                 dirs.forEach(([dr, dc]) => {
                     const nr = move.row + dr;
                     const nc = move.col + dc;
-                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-                        strikeForce[nr][nc] = move.player;
-                    }
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) strikeForce[nr][nc] = move.player;
                 });
             }
         });
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                if (boardState[r][c] !== 0 && strikeForce[r][c] !== 0 && boardState[r][c] !== strikeForce[r][c]) {
-                    boardState[r][c] = 0;
+                if (boardState[r][c] !== 0 && !deadState[r][c] && strikeForce[r][c] !== 0 && boardState[r][c] !== strikeForce[r][c]) {
+                    if (isBattlefieldMode) deadState[r][c] = true;
+                    else boardState[r][c] = 0;
                 }
             }
         }
 
         forceState = Array(rows).fill(0).map(() => Array(cols).fill(0));
         moveHistory.forEach(move => {
-            if (boardState[move.row][move.col] === move.player) {
+            if (boardState[move.row][move.col] === move.player && !deadState[move.row][move.col]) {
                 dirs.forEach(([dr, dc]) => {
                     const nr = move.row + dr;
                     const nc = move.col + dc;
-                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-                        forceState[nr][nc] = move.player;
-                    }
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) forceState[nr][nc] = move.player;
                 });
             }
         });
     }
 
     function handleDisappearance() {
-        if (disappearTurns === 0) return;
+        const currentTurns = getInputValue('disappearTurns', 30);
+        if (currentTurns === 0) return; 
         const currentTurn = moveHistory.length;
-        const expireTurn = currentTurn - disappearTurns;
-
+        const expireTurn = currentTurn - currentTurns;
         if (expireTurn >= 0) {
             const oldMove = moveHistory[expireTurn];
-            if (oldMove && boardState[oldMove.row][oldMove.col] === oldMove.player) {
-                boardState[oldMove.row][oldMove.col] = 0;
+            if (oldMove && boardState[oldMove.row][oldMove.col] === oldMove.player && !deadState[oldMove.row][oldMove.col]) {
+                if (isBattlefieldMode) deadState[oldMove.row][oldMove.col] = true;
+                else boardState[oldMove.row][oldMove.col] = 0;
             }
         }
     }
